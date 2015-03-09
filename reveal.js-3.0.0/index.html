@@ -81,6 +81,12 @@ class SomeTestCase(unittest.TestCase):
                         - Bad idea : you get the fixture + every tests
                     </p>
                     <p class="fragment">
+                        - Write an abstract base class
+                    </p>
+                    <p class="fragment">
+                        - You have to write a base class for every fixture : not very modular.
+                    </p>
+                    <p class="fragment">
                         - Extract fixture code and call it from setUp and teardDown
                     </p>
                     <p class="fragment">
@@ -88,18 +94,13 @@ class SomeTestCase(unittest.TestCase):
                     </p>
                 </section>
                 <section>
-                    <h2>Here we are now</h2>
+                    <h2>Some fixture library gets created</h2>
                     <pre><code data-trim contenteditable>
-import unittest
-
-
 class SomeFixtureLib:
     .....
-    ....
-
 
 class SomeTestCase(unittest.TestCase):
-
+ 
     def setUp(self):
         SomeFixtureLib.do_something
         SomeFixtureLib.do_something_else
@@ -111,31 +112,110 @@ class SomeTestCase(unittest.TestCase):
     def test_something(self):
         assert something
 
+                    </code></pre>
+                    <p class="fragment" style="text-align: left;">Would work</p>
+                    <p class="fragment" style="text-align: left;">But every test initialization sequence is hardcoded in its class</p>
+                </section>
+                <section>
+                    <h2>Pytest fixture mechanism</h2>
+                    <p class="fragment" style="text-align: left;">(Automatic) dependency injection of fixture inside test</p>
+                    <pre class="fragment"><code data-trim contenteditable>
+import pytest
 
-class SomeOtherTestCase(unittest.TestCase):
+@pytest.fixture
+def dbconn():
+    conn = create_some_db_connection()
+    return conn
 
-    def setUp(self):
-        SomeFixtureLib.do_something
-        SomeFixtureLib.do_something_else
-
-    def tearDown(self):
-        SomeFixtureLib.do_some_cleaning
-        SomeFixtureLib.do_some_more_cleaning
-
-    def test_something(self):
-        assert something_else
+def test_dummy(dbconn):
+    result = dbconn.make_some_query()
+    assert result == something
                     </code></pre>
                 </section>
                 <section>
-                        <h2>Fixture : </h2>
-                        <p class="fragment">A fixed state of the software under test used as a baseline for running tests</p>
-                        <p class="fragment">Availables in xUnit style libraries</p>
-                        <p><span class="fragment">... a</span> <span class="fragment">fragmented</span> <span class="fragment">slide.</span></p>
+                    <h2>Fixtures can do inception</h2>
+                    <p class="fragment" style="text-align: left;">Use a fixture from a fixture : </p>
+                    <pre class="fragment"><code data-trim contenteditable>
+@pytest.fixture
+def dbconn():
+    conn = create_some_db_connection()
+    return conn
 
-                        <aside class="notes">
-                            This slide has fragments which are also stepped through in the notes window.
-                        </aside>
-                    </section>
+@pytest.fixture
+def dbconn_trans(dbconn):
+    start_a_transaction(dbconn)
+    return dbconn
+
+def test_insert_some_things(dbconn_trans):
+    dbconn_trans.insert_something()
+    result = dbconn.query_that_thing()
+    assert result == something
+                    </code></pre>
+                </section>
+                <section>
+                    <h2>Fixtures scope</h2>
+                    <p class="fragment" style="text-align: left;">Control fixture invocation : </p>
+                    <pre class="fragment"><code data-trim contenteditable>
+@pytest.fixture(scope="module")
+def dbconn():
+    conn = create_some_db_connection()
+    return conn
+
+@pytest.fixture
+def dbconn_trans(dbconn):
+    start_a_transaction(dbconn)
+    return dbconn
+
+def test_insert_some_things(dbconn_trans):
+    dbconn_trans.insert_something()
+    result = dbconn.query_that_thing()
+    assert result == something
+                    </code></pre>
+                </section>
+                <section>
+                    <h2>Clean after yourself</h2>
+                        <p class="fragment" style="text-align: left;">They did not forget 'teardown' : </p>
+                        <pre class="fragment"><code data-trim contenteditable>
+@pytest.fixture(scope="module")
+def dbconn():
+    conn = create_some_db_connection()
+    return conn
+
+@pytest.fixture
+def dbconn_trans(dbconn, request):
+    start_a_transaction(dbconn)
+    def clean():
+        db_conn.release()
+    request.addfinalizer(fin)
+    return dbconn
+
+def test_insert_some_things(dbconn_trans):
+    dbconn_trans.insert_something()
+    result = dbconn.query_that_thing()
+    assert result == something
+                    </code></pre>
+                </section>
+                <section>
+                    <h2>Parametrize it</h2>
+                        <p class="fragment" style="text-align: left;">This will run tests multiple times with different parameters</p>
+                        <pre class="fragment"><code data-trim contenteditable>
+@pytest.fixture(scope="module",
+                params=["postgres", "sqlite"])
+def dbconn(request):
+    conn = create_some_db_connection(request.param)
+    return conn
+
+@pytest.fixture
+def dbconn_trans(dbconn):
+    start_a_transaction(dbconn)
+    return dbconn
+
+def test_insert_some_things(dbconn_trans):
+    dbconn_trans.insert_something()
+    result = dbconn.query_that_thing()
+    assert result == something
+                    </code></pre>
+                </section>
 				<section>
 					<h2>Hello There</h2>
 					<p>
